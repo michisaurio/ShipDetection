@@ -12,12 +12,12 @@ from matplotlib import pyplot as plt
 from xml.etree import ElementTree as et
 
 
-"""
-Hent ut (returner) path til alle bildefilene og .xml filene
-Return array med "dataset/Optisk/190616_112733.jpg" osv
-Return array med "dataset/Optisk/190616_112733.xml" osv
-"""
 def getFilePath(folder):
+    """
+    Hent ut (returner) path til alle bildefilene og .xml filene
+    :param folder:
+    :return: array with filepaths: "dataset/Optisk/190616_112733.jpg/.xml"
+    """
     file_path = []
     directory = os.listdir(folder)
     for filename in directory:
@@ -83,6 +83,67 @@ def changeLabelFilesInFolder(label_path):
         # TODO create a new .xml file to not override the original
         tree.write(path)
 
+def getBoundingBoxes(label_path):
+    """
+
+    :param label_path:
+    :return: bounding_box_vector
+    """
+    bounding_box_vector = []
+    for path in label_path:
+        tree = et.parse(path)
+        myroot = tree.getroot()
+
+        tag_name = ['xmin', 'ymin', 'xmax', 'ymax']
+        ship_class = ["motorboat", "sailboat", "barge"]
+
+        name_tag = []
+        bounding_boxes = [] # One vector pr .xml file
+        for x in myroot.findall('object'):
+            name = x.find('name')
+            #print("Name tag ..... ", name.text)
+            #name_tag.append(str(name.text))
+
+            if "motorboat" in name.text:
+                xmin = x.find('bndbox/' + tag_name[0])
+                #print(xmin.text)
+                ymin = x.find('bndbox/' + tag_name[1])
+                #print(ymin.text)
+                xmax = x.find('bndbox/' + tag_name[2])
+                #print(xmax.text)
+                ymax = x.find('bndbox/' + tag_name[3])
+                #print(ymax.text)
+
+                #ROI = img_kp[int(ymin.text):int(ymax.text), int(xmin.text):int(xmax.text)]
+
+                bounding_boxes.append(xmin.text)
+                bounding_boxes.append(ymin.text)
+                bounding_boxes.append(xmax.text)
+                bounding_boxes.append(ymax.text)
+            if "sailboat" in name.text:
+                xmin = x.find('bndbox/' + tag_name[0])
+                ymin = x.find('bndbox/' + tag_name[1])
+                xmax = x.find('bndbox/' + tag_name[2])
+                ymax = x.find('bndbox/' + tag_name[3])
+
+                bounding_boxes.append(xmin.text)
+                bounding_boxes.append(ymin.text)
+                bounding_boxes.append(xmax.text)
+                bounding_boxes.append(ymax.text)
+            if "barge" in name.text:
+                xmin = x.find('bndbox/' + tag_name[0])
+                ymin = x.find('bndbox/' + tag_name[1])
+                xmax = x.find('bndbox/' + tag_name[2])
+                ymax = x.find('bndbox/' + tag_name[3])
+
+                bounding_boxes.append(xmin.text)
+                bounding_boxes.append(ymin.text)
+                bounding_boxes.append(xmax.text)
+                bounding_boxes.append(ymax.text)
+        bounding_box_vector.append(bounding_boxes)
+
+    return bounding_box_vector
+
 
 def SIFT_features(train_image):
     """
@@ -97,32 +158,81 @@ def SIFT_features(train_image):
     for img in train_image:
         # The value of the mask (None) can be provided when we are looking for the keypoints or features for a specific portion
         kp, des = sift.detectAndCompute(img, None)
-        kp_on_img = cv2.drawKeypoints(img, kp, None)
+        kp_on_img = cv2.drawKeypoints(img, kp, img, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+        #kp_on_img = cv2.drawKeypoints(img, kp, None)
         descriptor_list.extend(des)
         keypoint_img.append(kp_on_img)
 
     return descriptor_list, keypoint_img
 
 
-def extractFeatures(visual_words, descriptor_list, image_count, no_clusters):
-    image_features = np.array([np.zeros(no_clusters) for i in range(image_count)])
-    for i in range(image_count): # 0 - antall bilder
-        for j in range(len(descriptor_list[i])):
-            feature = descriptor_list[i][j]
-    #        feature = feature.reshape(1, 128)
-            idx = visual_words.predict(feature)
-            image_features[i][idx] += 1
-    return image_features
-
-
-"""
-Cluster the list of descriptors using K-means clustering algorithm
-Return array of central points (AKA visual words)
-"""
 def clusterDescriptors(descriptors, k):
+    """
+    Cluster the list of descriptors using K-means clustering algorithm
+    :param descriptors:
+    :param k:
+    :return: array of central points (AKA visual words)
+    """
     kmeans = KMeans(n_clusters=k).fit(descriptors)
     visual_words = kmeans.cluster_centers_
     return visual_words
+
+
+def vstackDescriptors(descriptor_list):
+    descriptors = np.array(descriptor_list[0])
+    for descriptor in descriptor_list[1:]:
+        descriptors = np.vstack((descriptors, descriptor))
+    return descriptors
+
+
+def find_index(image, center):
+    count = 0
+    ind = 0
+    for i in range(len(center)):
+        if(i == 0):
+           count = distance.euclidean(image, center[i])
+           #count = L1_dist(image, center[i])
+        else:
+            dist = distance.euclidean(image, center[i])
+            #dist = L1_dist(image, center[i])
+            if(dist < count):
+                ind = i
+                count = dist
+    return ind
+
+
+def image_class(all_bovw, centers):
+    dict_feature = {}
+    for key, value in all_bovw.items():
+        category = []
+        for img in value:
+            histogram = np.zeros(len(centers))
+            for each_feature in img:
+                ind = find_index(each_feature, centers)
+                histogram[ind] += 1
+            category.append(histogram)
+        dict_feature[key] = category
+    return dict_feature
+
+
+def showImage(images, kp_img):
+    # Test image (190616_113607.jpg/.xml) without and with keypoints
+    img = images[17]
+    img_kp = kp_img[14]
+
+    # Display image with keypoints and ROI
+    x1 = 154.3
+    y1 = 73.1
+    x2 = 400.0
+    y2 = 256.3
+    ROI = img_kp[int(y1):int(y2), int(x1):int(x2)]  # Extract the ROI from image
+
+    # Save image to "result"-folder
+    dir = 'result'
+    cv2.imwrite(os.path.join(dir, "test_image_kp_roi.jpg"), ROI)
+    cv2.imwrite(os.path.join(dir, "test_image.jpg"), img)  # Check keypoints on image
+    cv2.waitKey(0)
+
 
 
 #def trainModel(train_path):
@@ -132,36 +242,40 @@ def clusterDescriptors(descriptors, k):
 
 if __name__ == '__main__':
     # TODO create train_model() and test_model() methods to run in _main_
+    # TODO lag en funksjon som splitter datasettet i training,testing (trainingSet, testingSet = splitDataset(img))
     # Training
     #image_path_train = getFiles(True, 'dataset/train')
     image_path_train, annotation_path_train = getFilePath('dataset/Optisk') # TODO legg til True for shuffeling training images
+    image_count = len(image_path_train)
 
     train_images = readImageInFolder(image_path_train)
 
     change_annotation_file = False
     if change_annotation_file is True:
         # If True, make changes to the .xml files in 'dataset/Optisk'
-        # Run only 1 time
+        # Run only once
         changeLabelFilesInFolder(annotation_path_train)
         print("NOTE: Bounding boxes are resized")
+
+    all_bounding_boxes = getBoundingBoxes(annotation_path_train)
 
 
     # Compute descriptors from images
     descriptor_list, keypoint_img = SIFT_features(train_images)
 
-    # Test image (190616_113607.jpg/.xml) without and with keypoints
-    img = train_images[14]
-    img_kp = keypoint_img[14]
+    # Show result on image
+    showImage(train_images, keypoint_img)
 
-    dir = 'result'
-    cv2.imwrite(os.path.join(dir, "test_image.jpg"), img)
-    cv2.imwrite(os.path.join(dir, "test_image_kp.jpg"), img_kp)   # Check keypoints on image
-    cv2.waitKey(0)
+    descriptors = vstackDescriptors(descriptor_list) # Er ikke helt sikker på hvorfor dette gjøres
+    print("Descriptors vstacked.")
 
+    # Create visual vocabulary
+    # Send the visual dictionary to the k-means clustering algorithm
+    visual_words = clusterDescriptors(descriptors, 10)  # Takes the central points which is visual words
+    print("Descriptors clustered")
 
-    #image_count = len(image_path_train)
-
-
+    # Creates histograms for train data
+    #bovw_train = image_class(descriptor_list, visual_words)
 
     """
     # Testing
@@ -180,8 +294,7 @@ if __name__ == '__main__':
     print(visual_words[0])
     print("Clustering completed")
 
-    im_features = extractFeatures(visual_words, descriptor_list, image_count, 50)
-    print("Images features extracted")
+    
 
 
     img_BRG = cv2.imread('dataset/ship/ship1.jpg')
