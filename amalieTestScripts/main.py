@@ -104,18 +104,18 @@ def cropImagesFromROI(images, label_path):
             name = x.find('name')
 
             if "motorboat" in name.text:
-                print("In motorboat")
+                #print("In motorboat")
                 xmin = x.find('bndbox/' + tag_name[0])
-                print(xmin.text)
+                #print(xmin.text)
                 ymin = x.find('bndbox/' + tag_name[1])
-                print(ymin.text)
+                #print(ymin.text)
                 xmax = x.find('bndbox/' + tag_name[2])
-                print(xmax.text)
+                #print(xmax.text)
                 ymax = x.find('bndbox/' + tag_name[3])
-                print(ymax.text)
+                #print(ymax.text)
 
                 tag += 1
-                print(tag)
+                #print(tag)
 
                 img = images[i]
                 ROI = img[int(float(ymin.text)):int(float(ymax.text)), int(float(xmin.text)):int(float(xmax.text))]
@@ -128,18 +128,18 @@ def cropImagesFromROI(images, label_path):
 
 
             if "sailboat" in name.text:
-                print("In sailboat")
+                #print("In sailboat")
                 xmin = x.find('bndbox/' + tag_name[0])
-                print(xmin.text)
+                #print(xmin.text)
                 ymin = x.find('bndbox/' + tag_name[1])
-                print(ymin.text)
+                #print(ymin.text)
                 xmax = x.find('bndbox/' + tag_name[2])
-                print(xmax.text)
+                #print(xmax.text)
                 ymax = x.find('bndbox/' + tag_name[3])
-                print(ymax.text)
+                #print(ymax.text)
 
                 tag += 1
-                print(tag)
+                #print(tag)
 
                 img = images[i]
                 ROI = img[int(float(ymin.text)):int(float(ymax.text)), int(float(xmin.text)):int(float(xmax.text))]
@@ -151,18 +151,18 @@ def cropImagesFromROI(images, label_path):
                 cropped_images.append(ROI)
 
             if "barge" in name.text:
-                print("In barge")
+                #print("In barge")
                 xmin = x.find('bndbox/' + tag_name[0])
-                print(xmin.text)
+                #print(xmin.text)
                 ymin = x.find('bndbox/' + tag_name[1])
-                print(ymin.text)
+                #print(ymin.text)
                 xmax = x.find('bndbox/' + tag_name[2])
-                print(xmax.text)
+                #print(xmax.text)
                 ymax = x.find('bndbox/' + tag_name[3])
-                print(ymax.text)
+                #print(ymax.text)
 
                 tag += 1
-                print(tag)
+                #print(tag)
 
                 img = images[i]
                 ROI = img[int(float(ymin.text)):int(float(ymax.text)), int(float(xmin.text)):int(float(xmax.text))]
@@ -209,6 +209,7 @@ def clusterDescriptors(descriptors, k):
 
 
 def vstackDescriptors(descriptor_list):
+    # used to stack the sequence of input arrays vertically to make a single array
     descriptors = np.array(descriptor_list[0])
     for descriptor in descriptor_list[1:]:
         descriptors = np.vstack((descriptors, descriptor))
@@ -231,18 +232,12 @@ def find_index(image, center):
     return ind
 
 
-def image_class(all_bovw, centers):
-    dict_feature = {}
-    for key, value in all_bovw.items():
-        category = []
-        for img in value:
-            histogram = np.zeros(len(centers))
-            for each_feature in img:
-                ind = find_index(each_feature, centers)
-                histogram[ind] += 1
-            category.append(histogram)
-        dict_feature[key] = category
-    return dict_feature
+def image_class(descriptors, centers):
+    histogram = np.zeros(len(centers))
+    for indx in range(descriptors.shape[0]):
+        ind_closest = find_index(descriptors[indx], centers) # The index to closest point
+        histogram[ind_closest] += 1
+    return histogram
 
 
 def showImage(images, kp_img):
@@ -267,7 +262,29 @@ def showImage(images, kp_img):
     plt.title("Image with keypoints")
     plt.show()
 
+    """
+    # Display image with keypoints and ROI
+    x1 = 792
+    y1 = 892
+    x2 = 1157
+    y2 = 1832
+    ROI = img_kp[int(y1):int(y2), int(x1):int(x2)]  # Extract the ROI from image
 
+    # Save image to "result"-folder
+    dir = 'result'
+    cv2.imwrite(os.path.join(dir, "test_image_kp_roi.jpg"), img_kp)
+    cv2.imwrite(os.path.join(dir, "test_image.jpg"), img)  # Check keypoints on image
+    cv2.waitKey(0)
+    """
+
+def plotHistogram(visual_words, bovw_train):
+    x_scalar = np.arange(len(visual_words))
+    plt.bar(x_scalar, bovw_train)  # x and y of histogram
+    plt.xlabel("Visual Word Index")
+    plt.ylabel("Frequency")
+    plt.title("Complete Vocabulary Generated")
+    plt.xticks(x_scalar + 0.4, x_scalar)
+    plt.show()
 
 
 
@@ -297,24 +314,26 @@ if __name__ == '__main__':
 
     img_crop = cropImagesFromROI(train_images, annotation_path_train)
 
-
     # Compute descriptors from images
     descriptor_list, keypoint_img = SIFT_features(img_crop)
     print("Descriptors computed")
 
+
     # Show result on image
     #showImage(img_crop, keypoint_img)
 
-    descriptors = vstackDescriptors(descriptor_list) # Er ikke helt sikker på hvorfor dette gjøres
-    print("Descriptors vstacked.")
+    descriptors = vstackDescriptors(descriptor_list)
+    print("Descriptors vstacked")
 
     # Create visual vocabulary
     # Send the visual dictionary to the k-means clustering algorithm
-    #visual_words = clusterDescriptors(descriptors, 10)  # Takes the central points which is visual words
-    #print("Descriptors clustered")
+    visual_words = clusterDescriptors(descriptors, 10)  # Takes the central points which is visual words
 
     # Creates histograms for train data
-    #bovw_train = image_class(descriptor_list, visual_words)
+    bovw_train = image_class(descriptors, visual_words)
+
+    plotHistogram(visual_words, bovw_train)
+    print("Features histogram plotted")
 
     """
     # Testing
