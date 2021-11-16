@@ -22,7 +22,7 @@ def getFilePath(folder):
     directory = os.listdir(folder)
     for filename in directory:
         path = folder + "/" + filename  # "dataset/Optisk/190616_112733.jpg"
-        file_path.append(path)
+        file_path.append(path)  # Legg til alle biler dataset/train/img_name.jpg
 
     # array[start_index:end_index:step]
     image_path = file_path[:len(file_path)-1:2]     # Exclude summary.xml file
@@ -45,8 +45,9 @@ def readImageInFolder(img_path):
     images = []
     for path in img_path:
         img = cv2.imread(path, 0)   # Read image and convert to grayscale
-        img_resize = cv2.resize(img, (400, 300))
-        images.append(img_resize)
+        #img_resize = cv2.resize(img, (400, 300))
+        #images.append(img_resize)
+        images.append(img)
     return images
 
 
@@ -54,11 +55,12 @@ def changeLabelFilesInFolder(label_path):
     """
     Rescale the bounding boxes to fit the resized image
     :param label_path: The path of the annotated file (.xml)
-    :return: None. Makes changes to the .xml file directly (overwrite the original!)
+    :return: None. Makes changes to the .xml file directly
     """
 
+    # 'dataset/Optisk/190616_113607.xml'
     for path in label_path:
-        #print(path)
+        print(path)
 
         tree = et.parse(path)
         myroot = tree.getroot()
@@ -66,8 +68,8 @@ def changeLabelFilesInFolder(label_path):
         tag_name = ['xmin', 'ymin', 'xmax', 'ymax']
 
         for x in myroot.findall('object'):
-            # Resize all bounding boxes in .xml file
-            #print('Bounding box: ' + str(x))
+            # Resize all bounding boxes
+            print('Bounding box: ' + str(x))
             xmin = x.find('bndbox/' + tag_name[0])
             xmin.text = str(float(xmin.text)/10)
             ymin = x.find('bndbox/' + tag_name[1])
@@ -76,6 +78,7 @@ def changeLabelFilesInFolder(label_path):
             xmax.text = str(float(xmax.text)/10)
             ymax = x.find('bndbox/' + tag_name[3])
             ymax.text = str(float(ymax.text)/10)
+    #    print(xmin.text, ymin.text, xmax.text, ymax.text)
 
         # Save to .xml file
         # TODO create a new .xml file to not override the original
@@ -84,11 +87,11 @@ def changeLabelFilesInFolder(label_path):
 
 def cropImagesFromROI(images, label_path):
     """
-    Crop images based on the ROI. Saves the images into the given folder
-    :param images: The images to be cropped
-    :param label_path: The label files
-    :return: None
+
+    :param label_path:
+    :return: bounding_box_vector
     """
+    cropped_images = []
     print(len(label_path))
     for i in range(len(images)):
         tree = et.parse(label_path[i])
@@ -117,9 +120,11 @@ def cropImagesFromROI(images, label_path):
                 img = images[i]
                 ROI = img[int(float(ymin.text)):int(float(ymax.text)), int(float(xmin.text)):int(float(xmax.text))]
                 # Save image to "result"-folder
-                dir = 'dataset/cropped_images'
-                cv2.imwrite(os.path.join(dir, "cropped_img" + str(i) + str(tag) + ".jpg"), ROI)
+                dir = 'dataset/Cropped'
+                cv2.imwrite(os.path.join(dir, "cropped_img" + str(i) + "_" + str(tag) + ".jpg"), ROI)
                 cv2.waitKey(0)
+
+                cropped_images.append(ROI)
 
 
             if "sailboat" in name.text:
@@ -139,9 +144,11 @@ def cropImagesFromROI(images, label_path):
                 img = images[i]
                 ROI = img[int(float(ymin.text)):int(float(ymax.text)), int(float(xmin.text)):int(float(xmax.text))]
                 # Save image to "result"-folder
-                dir = 'dataset/cropped_images'
-                cv2.imwrite(os.path.join(dir, "cropped_img" + str(i) + str(tag) + ".jpg"), ROI)
+                dir = 'dataset/Cropped'
+                cv2.imwrite(os.path.join(dir, "cropped_img" + str(i) + "_" + str(tag) + ".jpg"), ROI)
                 cv2.waitKey(0)
+
+                cropped_images.append(ROI)
 
             if "barge" in name.text:
                 print("In barge")
@@ -160,17 +167,19 @@ def cropImagesFromROI(images, label_path):
                 img = images[i]
                 ROI = img[int(float(ymin.text)):int(float(ymax.text)), int(float(xmin.text)):int(float(xmax.text))]
                 # Save image to "result"-folder
-                dir = 'dataset/cropped_images'
-                cv2.imwrite(os.path.join(dir, "cropped_img" + str(i) + str(tag) + ".jpg"), ROI)
+                dir = 'dataset/Cropped'
+                cv2.imwrite(os.path.join(dir, "cropped_img" + str(i) + "_" + str(tag) + ".jpg"), ROI)
                 cv2.waitKey(0)
 
-    return None
+                cropped_images.append(ROI)
+
+    return cropped_images
 
 def SIFT_features(train_image):
     """
     Compute keypoints and descriptors
     :param train_image:
-    :return:
+    :return: a list of descriptors
     """
     descriptor_list = []
     keypoint_img = []
@@ -206,30 +215,6 @@ def vstackDescriptors(descriptor_list):
     return descriptors
 
 
-def showImage(images, kp_img):
-    # Test image (190616_113607.jpg/.xml) without and with keypoints
-    BRG_img = images[0]
-    img = cv2.cvtColor(BRG_img, cv2.COLOR_BGR2RGB)
-    img_kp = kp_img[0]
-
-    # Display image with keypoints and ROI
-    x1 = 172.4
-    y1 = 16.4
-    x2 = 392.4
-    y2 = 299.7
-    ROI = img_kp[int(y1):int(y2), int(x1):int(x2)]  # Extract the ROI from image
-
-    fig = plt.figure(figsize=(15, 7))
-    fig.add_subplot(1, 2, 1), plt.imshow(img)
-    plt.axis('off')
-    plt.title("Original image")
-
-    fig.add_subplot(1, 2, 2), plt.imshow(ROI)
-    plt.axis('off')
-    plt.title("Processed with SIFT keypoints")
-    plt.show()
-
-
 def find_index(image, center):
     count = 0
     ind = 0
@@ -260,6 +245,31 @@ def image_class(all_bovw, centers):
     return dict_feature
 
 
+def showImage(images, kp_img):
+    # Test image (190616_113607.jpg/.xml) without and with keypoints
+    BRG_img = images[8]
+    img = cv2.cvtColor(BRG_img, cv2.COLOR_BGR2RGB)
+    img_kp = kp_img[8]
+
+    # Display
+    fig = plt.figure(figsize=(18,7))
+    rows = 1
+    columns = 2
+
+    fig.add_subplot(rows, columns, 1)
+    plt.imshow(img)
+    plt.axis('off')
+    plt.title("Original")
+
+    fig.add_subplot(rows, columns, 2)
+    plt.imshow(img_kp, cmap = plt.cm.gray)
+    plt.axis('off')
+    plt.title("Image with keypoints")
+    plt.show()
+
+
+
+
 
 #def trainModel(train_path):
 #    images = getFiles(train_path)
@@ -269,31 +279,34 @@ def image_class(all_bovw, centers):
 if __name__ == '__main__':
     # TODO create train_model() and test_model() methods to run in _main_
     # TODO lag en funksjon som splitter datasettet i training,testing (trainingSet, testingSet = splitDataset(img))
-
     # Training
+    #image_path_train = getFiles(True, 'dataset/train')
     image_path_train, annotation_path_train = getFilePath('dataset/Optisk') # TODO legg til True for shuffeling training images
     image_count = len(image_path_train)
 
     train_images = readImageInFolder(image_path_train)
 
+    """
     change_annotation_file = False
     if change_annotation_file is True:
-        # If True, make changes to the .xml files in 'dataset/Optisk'. Resize the bounding boxes to fit the images
+        # If True, make changes to the .xml files in 'dataset/Optisk'
         # Run only once
         changeLabelFilesInFolder(annotation_path_train)
-        print("NOTE: Bounding boxes are resized!")
+        print("NOTE: Bounding boxes are resized")
+    """
 
+    img_crop = cropImagesFromROI(train_images, annotation_path_train)
 
-    cropImagesFromROI(train_images, annotation_path_train)
 
     # Compute descriptors from images
-    descriptor_list, keypoint_img = SIFT_features(train_images)
+    descriptor_list, keypoint_img = SIFT_features(img_crop)
+    print("Descriptors computed")
 
     # Show result on image
-    showImage(train_images, keypoint_img)
+    #showImage(img_crop, keypoint_img)
 
-    #descriptors = vstackDescriptors(descriptor_list) # Er ikke helt sikker på hvorfor dette gjøres
-    #print("Descriptors vstacked.")
+    descriptors = vstackDescriptors(descriptor_list) # Er ikke helt sikker på hvorfor dette gjøres
+    print("Descriptors vstacked.")
 
     # Create visual vocabulary
     # Send the visual dictionary to the k-means clustering algorithm
