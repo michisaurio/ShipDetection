@@ -1,15 +1,27 @@
 """
-Implementation taken from:
-https://medium.com/@aybukeyalcinerr/bag-of-visual-words-bovw-db9500331b2f
+Hentet fra: https://github.com/gurkandemir/Bag-of-Visual-Words
+
+IMAGE CLASSIFICATION
 """
 
-import numpy as np
+import argparse
 import cv2
-import os                               # Allow you to interact with operating system. Standard Python utility modules
-from scipy.spatial import distance
+import numpy as np
+import os
 from sklearn.cluster import KMeans
+from sklearn.svm import SVC
+from sklearn.preprocessing import StandardScaler
 from matplotlib import pyplot as plt
+from sklearn import svm, datasets
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix
+from sklearn.utils.multiclass import unique_labels
+from sklearn.metrics.pairwise import chi2_kernel
+from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import accuracy_score
 from xml.etree import ElementTree as et
+import time
+import pickle
 
 
 def getFilePath(folder):
@@ -25,13 +37,14 @@ def getFilePath(folder):
         file_path.append(path)  # Legg til alle biler dataset/train/img_name.jpg
 
     # array[start_index:end_index:step]
-    image_path = file_path[:len(file_path)-1:2]     # Exclude summary.xml file
+    image_path = file_path[0::2]
     annotation_path = file_path[1::2]
-    #print(len(image_path))
 
-    #if (train is True):
-    #    # Shuffle the image (paths) for training
-    #    np.random.shuffle(image_path)
+    # print(image_path[0])
+    print("Length image path:", len(image_path))
+    # print(annotation_path[0])
+    print("Length annotation path:", len(annotation_path))
+
     return image_path, annotation_path
 
 
@@ -44,55 +57,23 @@ def readImageInFolder(img_path):
     # img = cv2.imread('dataset/train/ship1.jpg')
     images = []
     for path in img_path:
-        img = cv2.imread(path, 0)   # Read image and convert to grayscale
-        #img_resize = cv2.resize(img, (400, 300))
-        #images.append(img_resize)
+        img = cv2.imread(path)  # Read image and convert to grayscale
+        # img_resize = cv2.resize(img, (400, 300))
+        # images.append(img_resize)
         images.append(img)
+
     return images
 
 
-def changeLabelFilesInFolder(label_path):
-    """
-    Rescale the bounding boxes to fit the resized image
-    :param label_path: The path of the annotated file (.xml)
-    :return: None. Makes changes to the .xml file directly
+def scaleImageFromROI(images, label_path):
     """
 
-    # 'dataset/Optisk/190616_113607.xml'
-    for path in label_path:
-        print(path)
-
-        tree = et.parse(path)
-        myroot = tree.getroot()
-
-        tag_name = ['xmin', 'ymin', 'xmax', 'ymax']
-
-        for x in myroot.findall('object'):
-            # Resize all bounding boxes
-            print('Bounding box: ' + str(x))
-            xmin = x.find('bndbox/' + tag_name[0])
-            xmin.text = str(float(xmin.text)/10)
-            ymin = x.find('bndbox/' + tag_name[1])
-            ymin.text = str(float(ymin.text)/10)
-            xmax = x.find('bndbox/' + tag_name[2])
-            xmax.text = str(float(xmax.text)/10)
-            ymax = x.find('bndbox/' + tag_name[3])
-            ymax.text = str(float(ymax.text)/10)
-    #    print(xmin.text, ymin.text, xmax.text, ymax.text)
-
-        # Save to .xml file
-        # TODO create a new .xml file to not override the original
-        tree.write(path)
-
-
-def cropImagesFromROI(images, label_path):
-    """
-
+    :param images:
     :param label_path:
-    :return: bounding_box_vector
+    :return:
     """
     cropped_images = []
-    print(len(label_path))
+    train_labels = []
     for i in range(len(images)):
         tree = et.parse(label_path[i])
         myroot = tree.getroot()
@@ -103,183 +84,219 @@ def cropImagesFromROI(images, label_path):
         for x in myroot.findall('object'):
             name = x.find('name')
 
-            if "motorboat" in name.text:
-                #print("In motorboat")
+            if "motorboat with priority" in name.text:
+                class_index = 0
+                # print("In motorboat")
                 xmin = x.find('bndbox/' + tag_name[0])
-                #print(xmin.text)
+                # print(xmin.text)
                 ymin = x.find('bndbox/' + tag_name[1])
-                #print(ymin.text)
+                # print(ymin.text)
                 xmax = x.find('bndbox/' + tag_name[2])
-                #print(xmax.text)
+                # print(xmax.text)
                 ymax = x.find('bndbox/' + tag_name[3])
-                #print(ymax.text)
+                # print(ymax.text)
+                tag += 1
+                # print(tag)
+                img = images[i]
+                ROI = img[int(float(ymin.text)):int(float(ymax.text)), int(float(xmin.text)):int(float(xmax.text))]
+                # Save image to "result"-folder
+                dir = 'Cropped/motorboat_priority'
+                cv2.imwrite(os.path.join(dir, "motorboat_priority" + str(i) + "_" + str(tag) + ".jpg"), ROI)
+                cv2.waitKey(0)
+                cropped_images.append(ROI)
+                train_labels.append(class_index)
+
+            elif "sailboat with sails down" in name.text:
+                class_index = 1
+                # print("In sailboat")
+                xmin = x.find('bndbox/' + tag_name[0])
+                # print(xmin.text)
+                ymin = x.find('bndbox/' + tag_name[1])
+                # print(ymin.text)
+                xmax = x.find('bndbox/' + tag_name[2])
+                # print(xmax.text)
+                ymax = x.find('bndbox/' + tag_name[3])
+                # print(ymax.text)
 
                 tag += 1
-                #print(tag)
+                # print(tag)
 
                 img = images[i]
                 ROI = img[int(float(ymin.text)):int(float(ymax.text)), int(float(xmin.text)):int(float(xmax.text))]
                 # Save image to "result"-folder
-                dir = 'dataset/Cropped'
-                cv2.imwrite(os.path.join(dir, "cropped_img" + str(i) + "_" + str(tag) + ".jpg"), ROI)
+                dir = 'Cropped/sailboat_down'
+                cv2.imwrite(os.path.join(dir, "sailboat_down" + str(i) + "_" + str(tag) + ".jpg"), ROI)
                 cv2.waitKey(0)
-
                 cropped_images.append(ROI)
+                train_labels.append(class_index)
 
-
-            if "sailboat" in name.text:
-                #print("In sailboat")
+            elif "sailboat with sails up" in name.text:
+                class_index = 2
+                # print("In sailboat")
                 xmin = x.find('bndbox/' + tag_name[0])
-                #print(xmin.text)
+                # print(xmin.text)
                 ymin = x.find('bndbox/' + tag_name[1])
-                #print(ymin.text)
+                # print(ymin.text)
                 xmax = x.find('bndbox/' + tag_name[2])
-                #print(xmax.text)
+                # print(xmax.text)
                 ymax = x.find('bndbox/' + tag_name[3])
-                #print(ymax.text)
+                # print(ymax.text)
 
                 tag += 1
-                #print(tag)
+                # print(tag)
 
                 img = images[i]
                 ROI = img[int(float(ymin.text)):int(float(ymax.text)), int(float(xmin.text)):int(float(xmax.text))]
                 # Save image to "result"-folder
-                dir = 'dataset/Cropped'
-                cv2.imwrite(os.path.join(dir, "cropped_img" + str(i) + "_" + str(tag) + ".jpg"), ROI)
+                dir = 'Cropped/sailboat_up'
+                cv2.imwrite(os.path.join(dir, "sailboat_up" + str(i) + "_" + str(tag) + ".jpg"), ROI)
                 cv2.waitKey(0)
-
                 cropped_images.append(ROI)
+                train_labels.append(class_index)
 
-            if "barge" in name.text:
-                #print("In barge")
+            elif "barge" in name.text:
+                class_index = 3
+                # print("In barge")
                 xmin = x.find('bndbox/' + tag_name[0])
-                #print(xmin.text)
+                # print(xmin.text)
                 ymin = x.find('bndbox/' + tag_name[1])
-                #print(ymin.text)
+                # print(ymin.text)
                 xmax = x.find('bndbox/' + tag_name[2])
-                #print(xmax.text)
+                # print(xmax.text)
                 ymax = x.find('bndbox/' + tag_name[3])
-                #print(ymax.text)
+                # print(ymax.text)
 
                 tag += 1
-                #print(tag)
+                # print(tag)
 
                 img = images[i]
                 ROI = img[int(float(ymin.text)):int(float(ymax.text)), int(float(xmin.text)):int(float(xmax.text))]
                 # Save image to "result"-folder
-                dir = 'dataset/Cropped'
-                cv2.imwrite(os.path.join(dir, "cropped_img" + str(i) + "_" + str(tag) + ".jpg"), ROI)
+                dir = 'Cropped/barge'
+                cv2.imwrite(os.path.join(dir, "barge" + str(i) + "_" + str(tag) + ".jpg"), ROI)
                 cv2.waitKey(0)
-
                 cropped_images.append(ROI)
+                train_labels.append(class_index)
 
-    return cropped_images
+            elif "building" in name.text:
+                var = None
+            elif "front" in name.text:
+                var = None
+            elif "back" in name.text:
+                var = None
+            elif "side" in name.text:
+                var = None
+            elif "wake" in name.text:
+                var = None
+            elif "mast" in name.text:
+                var = None
+            elif "overbygg" in name.text:
+                var = None
+            elif "bridge" in name.text:
+                var = None
+            else:  # motorboat
+                class_index = 4
+                # print("In motorboat")
+                xmin = x.find('bndbox/' + tag_name[0])
+                # print(xmin.text)
+                ymin = x.find('bndbox/' + tag_name[1])
+                # print(ymin.text)
+                xmax = x.find('bndbox/' + tag_name[2])
+                # print(xmax.text)
+                ymax = x.find('bndbox/' + tag_name[3])
+                # print(ymax.text)
+                tag += 1
+                # print(tag)
+                img = images[i]
+                ROI = img[int(float(ymin.text)):int(float(ymax.text)), int(float(xmin.text)):int(float(xmax.text))]
+                # Save image to "result"-folder
+                dir = 'Cropped/motorboat'
+                cv2.imwrite(os.path.join(dir, "motorboat" + str(i) + "_" + str(tag) + ".jpg"), ROI)
+                cv2.waitKey(0)
+                cropped_images.append(ROI)
+                train_labels.append(class_index)
 
-def SIFT_features(train_image):
-    """
-    Compute keypoints and descriptors
-    :param train_image:
-    :return: a list of descriptors
-    """
-    descriptor_list = []
-    keypoint_img = []
-    #sift = cv2.SIFT_create(nfeatures=0, nOctaveLayers=4, contrastThreshold=0.05, edgeThreshold=10, sigma=1.6)
-    sift = cv2.SIFT_create()
-    for img in train_image:
-        # The value of the mask (None) can be provided when we are looking for the keypoints or features for a specific portion
+    return cropped_images, train_labels
+
+
+def splitDataset(dataset, random):
+    # TODO split dataset with cropped images into training and testing
+    train, test = train_test_split(dataset, test_size=0.2, train_size=0.8, shuffle=random)
+    return train, test
+
+
+def getFiles(train, path):
+    val = train
+    images = []
+    count = 0
+    for folder in os.listdir(path):
+        for file in os.listdir(os.path.join(path, folder)):
+            images.append(os.path.join(path, os.path.join(folder, file)))
+
+    # TODO endre til shuffel
+    # if (train is True):
+    #    np.random.shuffle(images)
+    return images
+
+
+def getDescriptors(sift, orb, extractor, img):
+    # kp, des = sift.detectAndCompute(img, None)
+    if "sift" in extractor:  # Funker
+        # sift = cv2.SIFT_create()
         kp, des = sift.detectAndCompute(img, None)
-        kp_on_img = cv2.drawKeypoints(img, kp, img, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-        #kp_on_img = cv2.drawKeypoints(img, kp, None)
-        descriptor_list.extend(des)
-        keypoint_img.append(kp_on_img)
 
-    return descriptor_list, keypoint_img
+    if "orb" in extractor:  # Funker
+        # orb = cv2.ORB_create()
+        kp, des = orb.detectAndCompute(img, None)
+
+    img_kp = cv2.drawKeypoints(img, kp, None, color=(0, 0, 255))
+    # cv2.imwrite('img_keypoint.png', img_kp)
+    return des, img_kp
 
 
-def clusterDescriptors(descriptors, k):
-    """
-    Cluster the list of descriptors using K-means clustering algorithm
-    :param descriptors:
-    :param k:
-    :return: array of central points (AKA visual words)
-    """
-    kmeans = KMeans(n_clusters=k).fit(descriptors)
-    visual_words = kmeans.cluster_centers_
-    return visual_words
+def readImage(img_path):
+    # img = cv2.imread(img_path, 0)
+    img = cv2.imread(img_path, 0)
+    return img  # cv2.resize(img, (150, 150))
 
 
 def vstackDescriptors(descriptor_list):
-    # used to stack the sequence of input arrays vertically to make a single array
     descriptors = np.array(descriptor_list[0])
+    # print("In vstackDescriptor - Shape descriptor: ", np.shape(descriptors))
     for descriptor in descriptor_list[1:]:
+        # print("Shape descriptor: ", np.shape(descriptor))
         descriptors = np.vstack((descriptors, descriptor))
     return descriptors
 
 
-def find_index(image, center):
-    count = 0
-    ind = 0
-    for i in range(len(center)):
-        if(i == 0):
-           count = distance.euclidean(image, center[i])
-           #count = L1_dist(image, center[i])
-        else:
-            dist = distance.euclidean(image, center[i])
-            #dist = L1_dist(image, center[i])
-            if(dist < count):
-                ind = i
-                count = dist
-    return ind
+def clusterDescriptors(descriptors, no_clusters):
+    # kmeans = KMeans(init="random", n_clusters=no_clusters, n_init=10, max_iter=300, random_state=42)
+    # kmeans.fit(descriptors)
+    kmeans = KMeans(n_clusters=no_clusters).fit(descriptors)
+    return kmeans
 
 
-def image_class(descriptors, centers):
-    histogram = np.zeros(len(centers))
-    for indx in range(descriptors.shape[0]):
-        ind_closest = find_index(descriptors[indx], centers) # The index to closest point
-        histogram[ind_closest] += 1
-    return histogram
+def extractFeatures(kmeans, descriptor_list, image_count, no_clusters):
+    im_features = np.array([np.zeros(no_clusters) for i in range(image_count)])
+    for i in range(image_count):
+        for j in range(len(descriptor_list[i])):
+            feature = descriptor_list[i][j]
+            feature = feature.reshape(1, 128)
+            idx = kmeans.predict(feature)
+            im_features[i][idx] += 1
+
+    return im_features
 
 
-def showImage(images, kp_img):
-    # Test image (190616_113607.jpg/.xml) without and with keypoints
-    BRG_img = images[8]
-    img = cv2.cvtColor(BRG_img, cv2.COLOR_BGR2RGB)
-    img_kp = kp_img[8]
+def normalizeFeatures(scale, features):
+    return scale.transform(features)
 
-    # Display
-    fig = plt.figure(figsize=(18,7))
-    rows = 1
-    columns = 2
 
-    fig.add_subplot(rows, columns, 1)
-    plt.imshow(img)
-    plt.axis('off')
-    plt.title("Original")
+def plotHistogram(im_features, no_clusters):
+    x_scalar = np.arange(no_clusters)
+    y_scalar = np.array([abs(np.sum(im_features[:, h], dtype=np.int32)) for h in range(no_clusters)])
 
-    fig.add_subplot(rows, columns, 2)
-    plt.imshow(img_kp, cmap = plt.cm.gray)
-    plt.axis('off')
-    plt.title("Image with keypoints")
-    plt.show()
-
-    """
-    # Display image with keypoints and ROI
-    x1 = 792
-    y1 = 892
-    x2 = 1157
-    y2 = 1832
-    ROI = img_kp[int(y1):int(y2), int(x1):int(x2)]  # Extract the ROI from image
-
-    # Save image to "result"-folder
-    dir = 'result'
-    cv2.imwrite(os.path.join(dir, "test_image_kp_roi.jpg"), img_kp)
-    cv2.imwrite(os.path.join(dir, "test_image.jpg"), img)  # Check keypoints on image
-    cv2.waitKey(0)
-    """
-
-def plotHistogram(visual_words, bovw_train):
-    x_scalar = np.arange(len(visual_words))
-    plt.bar(x_scalar, bovw_train)  # x and y of histogram
+    plt.bar(x_scalar, y_scalar)
     plt.xlabel("Visual Word Index")
     plt.ylabel("Frequency")
     plt.title("Complete Vocabulary Generated")
@@ -287,100 +304,310 @@ def plotHistogram(visual_words, bovw_train):
     plt.show()
 
 
+def svcParamSelection(X, y, kernel, nfolds):
+    Cs = [0.5, 0.1, 0.15, 0.2, 0.3]
+    gammas = [0.1, 0.11, 0.095, 0.105]
+    param_grid = {'C': Cs, 'gamma': gammas}
+    grid_search = GridSearchCV(SVC(kernel=kernel), param_grid, cv=nfolds)
+    grid_search.fit(X, y)
+    grid_search.best_params_
+    return grid_search.best_params_
 
-#def trainModel(train_path):
-#    images = getFiles(train_path)
-#    return images
+
+def findSVM(im_features, train_labels, kernel):
+    features = im_features
+    if (kernel == "precomputed"):
+        features = np.dot(im_features, im_features.T)
+
+    params = svcParamSelection(features, train_labels, kernel, 5)
+    C_param, gamma_param = params.get("C"), params.get("gamma")
+    print(C_param, gamma_param)
+    class_weight = {
+        0: (807 / (5 * 140)),
+        1: (807 / (5 * 140)),
+        2: (807 / (5 * 133)),
+        3: (807 / (5 * 133)),
+        4: (807 / (5 * 133))
+    }
+
+    svm = SVC(kernel=kernel, C=C_param, gamma=gamma_param, class_weight=class_weight)
+    svm.fit(features, train_labels)
+    return svm
+
+
+def plotConfusionMatrix(y_true, y_pred, classes,
+                        normalize=False,
+                        title=None,
+                        cmap=plt.cm.Blues):
+    if not title:
+        if normalize:
+            title = 'Normalized confusion matrix'
+        else:
+            title = 'Confusion matrix, without normalization'
+
+    cm = confusion_matrix(y_true, y_pred)
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        print("Normalized confusion matrix")
+    else:
+        print('Confusion matrix, without normalization')
+
+    print(cm)
+
+    fig, ax = plt.subplots()
+    im = ax.imshow(cm, interpolation='nearest', cmap=cmap)
+    ax.figure.colorbar(im, ax=ax)
+    ax.set(xticks=np.arange(cm.shape[1]),
+           yticks=np.arange(cm.shape[0]),
+           xticklabels=classes, yticklabels=classes,
+           title=title,
+           ylabel='True label',
+           xlabel='Predicted label')
+
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+             rotation_mode="anchor")
+
+    fmt = '.2f' if normalize else 'd'
+    thresh = cm.max() / 2.
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            ax.text(j, i, format(cm[i, j], fmt),
+                    ha="center", va="center",
+                    color="white" if cm[i, j] > thresh else "black")
+    fig.tight_layout()
+    return ax
+
+
+def plotConfusions(true, predictions):
+    np.set_printoptions(precision=2)
+
+    class_names = ["barge", "motorboat", "motorboat_priority", "sailboat_down", "sailboat_up"]
+
+    plotConfusionMatrix(true, predictions, classes=class_names,
+                        title='Confusion matrix, without normalization')
+
+    plotConfusionMatrix(true, predictions, classes=class_names, normalize=True,
+                        title='Normalized confusion matrix')
+    plt.show()
+
+
+def findAccuracy(true, predictions):
+    print('accuracy score: %0.3f' % accuracy_score(true, predictions))
+
+
+# TODO train model
+def trainModel(folder, no_clusters, kernel):
+    time1 = time.time()
+
+    image_path = getFiles(True, folder)  # Dataset/train\face\face-091.jpg
+    print("Train images path detected.")
+
+    # Create extractors
+    sift = cv2.SIFT_create(nfeatures=0, nOctaveLayers=3, contrastThreshold=0.04, edgeThreshold=10, sigma=1.6)
+    orb = cv2.ORB_create(nfeatures=500, scaleFactor=1.2, nlevels=8, edgeThreshold=31, firstLevel=0,
+                         WTA_K=2, patchSize=31, fastThreshold=10)
+
+    descriptor_list = []
+    kp_img_list = []
+    zero_des_list = []
+    train_labels = np.array([])
+    # label_count = 3
+
+    train_images = []
+    for path in image_path:
+        img = readImage(path)
+        train_images.append(img)
+        des, kp_img = getDescriptors(sift, orb, "sift", img)
+        # TODO add count =+ 1 for counting (like in train)
+        if des is not None:
+            descriptor_list.append(des)
+            kp_img_list.append(kp_img)
+
+            if ("motorboat_priority" in path):
+                class_index = 0
+            elif ("sailboat_down" in path):
+                class_index = 1
+            elif ("sailboat_up" in path):
+                class_index = 2
+            elif ("barge" in path):
+                class_index = 3
+            else:
+                class_index = 4
+            train_labels = np.append(train_labels, class_index)
+        else:
+            print("Found Zero-descriptor: " + path)
+            zero_des_list.append(des)
+
+    print("Nr. of images", len(train_images))
+    print("Train labels:", len(train_labels))
+
+    print("Length/size descriptor list: ", len(descriptor_list), np.shape(descriptor_list))
+    # print(np.shape(descriptor_list[9]))
+    # print(np.shape(descriptor_list[10]))
+    print("Lenght descriptor 0: ", len(descriptor_list[0]), np.shape(descriptor_list[0]))
+    print("Lenght descriptor 10: ", len(descriptor_list[10]), np.shape(descriptor_list[10]))
+
+    plt.imshow(kp_img_list[10], cmap=plt.cm.gray)
+    plt.axis('off')
+    plt.title("Image")
+    plt.show()
+    # print("train labels:", train_labels)
+
+    descriptors = vstackDescriptors(descriptor_list)
+    print("Descriptors vstacked.")
+
+    kmeans = clusterDescriptors(descriptors, no_clusters)
+    print("Descriptors clustered.")
+
+    # TODO legg til if
+    if zero_des_list is not None:
+        image_count = len(image_path) - len(zero_des_list)
+    else:
+        image_count = len(image_path)
+    # image_count = len(image_path) - len(zero_des_list) # Subtract the zero-descriptors
+    im_features = extractFeatures(kmeans, descriptor_list, image_count, no_clusters)
+    print("Images features extracted.")
+
+    scale = StandardScaler().fit(im_features)
+    im_features = scale.transform(im_features)
+    print("Train images normalized.")
+
+    plotHistogram(im_features, no_clusters)
+    print("Features histogram plotted.")
+
+    svm = findSVM(im_features, train_labels, kernel)
+    print(im_features)
+    print("SVM fitted.")
+    print("Training completed.")
+
+    time2 = time.time()
+    print("... Running training time:", (time2 - time1) / 60, "min ...")
+
+    return kmeans, scale, svm, im_features
+
+
+# TODO test model
+def testModel(path, kmeans, scale, svm, im_features, no_clusters, kernel):
+    time1 = time.time()
+
+    test_images = getFiles(False, path)
+    print("Test images path detected.")
+
+    sift = cv2.SIFT_create(nfeatures=0, nOctaveLayers=3, contrastThreshold=0.04, edgeThreshold=10, sigma=1.6)
+    orb = cv2.ORB_create(nfeatures=500, scaleFactor=1.2, nlevels=8, edgeThreshold=31, firstLevel=0,
+                         WTA_K=2, patchSize=31, fastThreshold=10)
+
+    count = 0
+    true = []
+    descriptor_list = []
+
+    name_dict = {
+        "0": "motorboat_priority",
+        "1": "sailboat_down",
+        "2": "sailboat_up",
+        "3": "barge",
+        "4": "motorboat"
+    }
+
+    for path in test_images:
+        img = readImage(path)
+        des, _ = getDescriptors(sift, orb, "sift", img)
+
+        if (des is not None):
+            count += 1  # TODO gjør dette i train også
+            descriptor_list.append(des)
+
+            if ("motorboat_priority" in path):
+                true.append("motorboat_priority")
+            elif ("sailboat_down" in path):
+                true.append("sailboat_down")
+            elif ("sailboat_up" in path):
+                true.append("sailboat_up")
+            elif ("barge" in path):
+                true.append("barge")
+            else:
+                true.append("motorboat")
+        else:
+            print("Found zero-descriptor in train set: " + path)
+
+    # print("descriptor_list shape: ", np.shape(descriptor_list))
+    # print("descriptor_list[0] shape: ", np.shape(descriptor_list[0]))
+    # print("descriptor_list[10] shape: ", np.shape(descriptor_list[10]))
+
+    # descriptors = vstackDescriptors(descriptor_list)
+    print("")
+    # print("descriptors shape: ", np.shape(descriptors))
+
+    test_features = extractFeatures(kmeans, descriptor_list, count, no_clusters)
+
+    test_features = scale.transform(test_features)
+    print("test features:", len(test_features))
+
+    kernel_test = test_features
+    if (kernel == "precomputed"):
+        kernel_test = np.dot(test_features, im_features.T)
+
+    predictions = [name_dict[str(int(i))] for i in svm.predict(kernel_test)]
+    print("Test images classified.")
+
+    print("True labels:", true)
+    print("Predictions:", predictions)
+
+    plotConfusions(true, predictions)
+    print("Confusion matrices plotted.")
+
+    findAccuracy(true, predictions)
+    print("Accuracy calculated.")
+    print("Execution done.")
+
+    time2 = time.time()
+    print("Running testing time:", (time2 - time1) / 60, "min")
 
 
 if __name__ == '__main__':
-    # TODO create train_model() and test_model() methods to run in _main_
-    # TODO lag en funksjon som splitter datasettet i training,testing (trainingSet, testingSet = splitDataset(img))
-    # Training
-    #image_path_train = getFiles(True, 'dataset/train')
-    image_path_train, annotation_path_train = getFilePath('dataset/Optisk') # TODO legg til True for shuffeling training images
-    image_count = len(image_path_train)
 
-    train_images = readImageInFolder(image_path_train)
+    imageProcessing = False
+    if imageProcessing is True:
+        img_path_train, annotation_path_train = getFilePath('images/train')
+        print("GetFilePath completed")
 
-    """
-    change_annotation_file = False
-    if change_annotation_file is True:
-        # If True, make changes to the .xml files in 'dataset/Optisk'
-        # Run only once
-        changeLabelFilesInFolder(annotation_path_train)
-        print("NOTE: Bounding boxes are resized")
-    """
+        images_train = readImageInFolder(img_path_train)
+        print("readImageInFolder completed")
 
-    img_crop = cropImagesFromROI(train_images, annotation_path_train)
+        scaled_images_train, train_labels = scaleImageFromROI(images_train, annotation_path_train)
+        print("scaleImageFromROI completed")
 
-    # Compute descriptors from images
-    descriptor_list, keypoint_img = SIFT_features(img_crop)
-    print("Descriptors computed")
+        # Split dataset into training and testing
 
+    train_model = False
+    if train_model is True:
+        kmeans, scale, svm, im_features = trainModel('Dataset/train', 10, 'linear')
+        # trainModel('Dataset/train', 40, 'linear')
 
-    # Show result on image
-    #showImage(img_crop, keypoint_img)
+        # Save training variables
+        # myvar = [kmeans, scale, svm, im_features]
+        # with open('file.pkl', 'wb') as file:
+        # A new file will be created
+        #    pickle.dump(myvar, file)
 
-    descriptors = vstackDescriptors(descriptor_list)
-    print("Descriptors vstacked")
+        # print("Pickle file saved")
 
-    # Create visual vocabulary
-    # Send the visual dictionary to the k-means clustering algorithm
-    visual_words = clusterDescriptors(descriptors, 10)  # Takes the central points which is visual words
+    # Open saved train file
+    with open('file.pkl', 'rb') as file:
+        # Call load method to deserialze
+        var = pickle.load(file)
 
-    # Creates histograms for train data
-    bovw_train = image_class(descriptors, visual_words)
+        # print(var[4])
 
-    plotHistogram(visual_words, bovw_train)
-    print("Features histogram plotted")
+    kmeans = var[0]
+    scale = var[1]
+    svm = var[2]
+    im_features = var[3]
 
-    """
-    # Testing
-    #image_path_test = getFiles(False, 'dataset/test')
-    #test_images = readImage(image_path_test)
-    print("Reading images completed")
+    print("Pickle file loaded")
 
-    #dir = 'dataset/result'
-    #cv2.imwrite(os.path.join(dir, "result.jpg"), train_images[0])
-    #cv2.waitKey(0)
-
-    descriptor_list = SIFT_features(train_images)
-    print("Descriptors computed")
-
-    visual_words = clusterDescriptors(descriptor_list, k=50)
-    print(visual_words[0])
-    print("Clustering completed")
-
-    
+    print(" ")
+    testModel('Dataset/test', kmeans, scale, svm, im_features, 10, 'linear')
 
 
-    img_BRG = cv2.imread('dataset/ship/ship1.jpg')
-    img = cv2.cvtColor(img_BRG, cv2.COLOR_BGR2RGB)
-    img_resize = cv2.resize(img, (400, 300))
 
-    # Compare different SIFT objects
-    #compare_SIFT(img_resize)
-
-    blur1 = cv2.blur(img_resize, (5, 5)) # Gives same result as with kernel
-    blur2 = cv2.blur(img_resize, (7, 7))
-    compute_and_show_keypoints(blur1, blur2, 'Blur, 5x5 kernel', 'Blur, 7x7 kernel')
-
-    median1 = cv2.medianBlur(img_resize, 5) # Kernel size must be positive, odd integer
-    median2 = cv2.medianBlur(img_resize, 7)
-    compute_and_show_keypoints(median1, median2, 'Median, 5x5 kernel', 'Median, 7x7 kernel')
-
-    bilateral1 = cv2.bilateralFilter(img_resize, 2, 75, 75)
-    bilateral2 = cv2.bilateralFilter(img_resize, 10, 75, 75)
-    compute_and_show_keypoints(bilateral1, bilateral2, 'Bilateral less', 'Bilateral more')
- 
-    titles = ['Original Image', 'Blurred', 'Median', 'Bilateral']
-    images = [kp_on_img4, kp_on_img1, kp_on_img2, kp_on_img3]
-
-    fig = plt.figure(figsize=(15, 7))
-    for i in range(4):
-        fig.add_subplot(2, 2, i+1), plt.imshow(images[i], 'gray')
-        plt.title(titles[i])
-        plt.xticks([]), plt.yticks([])
-    plt.show()
-       """
