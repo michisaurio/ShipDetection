@@ -1,6 +1,4 @@
 """
-Hentet fra: https://github.com/gurkandemir/Bag-of-Visual-Words
-
 IMAGE CLASSIFICATION
 """
 
