@@ -18,7 +18,8 @@ from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
 from sklearn.metrics.pairwise import chi2_kernel
 from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import accuracy_score
+#from sklearn.metrics import accuracy_score
+import sklearn.metrics as metric
 from xml.etree import ElementTree as et
 import time
 import pickle
@@ -32,6 +33,7 @@ def getFilePath(folder):
     """
     file_path = []
     directory = os.listdir(folder)
+    print(folder)
     for filename in directory:
         path = folder + "/" + filename  # "dataset/Optisk/190616_112733.jpg"
         file_path.append(path)  # Legg til alle biler dataset/train/img_name.jpg
@@ -40,13 +42,12 @@ def getFilePath(folder):
     image_path = file_path[0::2]
     annotation_path = file_path[1::2]
 
-    # print(image_path[0])
+    #print(image_path[0])
     print("Length image path:", len(image_path))
-    # print(annotation_path[0])
+    #print(annotation_path[0])
     print("Length annotation path:", len(annotation_path))
 
     return image_path, annotation_path
-
 
 def readImageInFolder(img_path):
     """
@@ -57,13 +58,11 @@ def readImageInFolder(img_path):
     # img = cv2.imread('dataset/train/ship1.jpg')
     images = []
     for path in img_path:
-        img = cv2.imread(path)  # Read image and convert to grayscale
-        # img_resize = cv2.resize(img, (400, 300))
-        # images.append(img_resize)
+        img = cv2.imread(path)   # Read image and convert to grayscale
+        #img_resize = cv2.resize(img, (400, 300))
+        #images.append(img_resize)
         images.append(img)
-
     return images
-
 
 def scaleImageFromROI(images, label_path):
     """
@@ -73,7 +72,8 @@ def scaleImageFromROI(images, label_path):
     :return:
     """
     cropped_images = []
-    train_labels = []
+
+
     for i in range(len(images)):
         tree = et.parse(label_path[i])
         myroot = tree.getroot()
@@ -84,19 +84,19 @@ def scaleImageFromROI(images, label_path):
         for x in myroot.findall('object'):
             name = x.find('name')
 
+
             if "motorboat with priority" in name.text:
-                class_index = 0
-                # print("In motorboat")
+                #print("In motorboat")
                 xmin = x.find('bndbox/' + tag_name[0])
-                # print(xmin.text)
+                #print(xmin.text)
                 ymin = x.find('bndbox/' + tag_name[1])
-                # print(ymin.text)
+                #print(ymin.text)
                 xmax = x.find('bndbox/' + tag_name[2])
-                # print(xmax.text)
+                #print(xmax.text)
                 ymax = x.find('bndbox/' + tag_name[3])
-                # print(ymax.text)
+                #print(ymax.text)
                 tag += 1
-                # print(tag)
+                #print(tag)
                 img = images[i]
                 ROI = img[int(float(ymin.text)):int(float(ymax.text)), int(float(xmin.text)):int(float(xmax.text))]
                 # Save image to "result"-folder
@@ -104,22 +104,20 @@ def scaleImageFromROI(images, label_path):
                 cv2.imwrite(os.path.join(dir, "motorboat_priority" + str(i) + "_" + str(tag) + ".jpg"), ROI)
                 cv2.waitKey(0)
                 cropped_images.append(ROI)
-                train_labels.append(class_index)
 
             elif "sailboat with sails down" in name.text:
-                class_index = 1
-                # print("In sailboat")
+                #print("In sailboat")
                 xmin = x.find('bndbox/' + tag_name[0])
-                # print(xmin.text)
+                #print(xmin.text)
                 ymin = x.find('bndbox/' + tag_name[1])
-                # print(ymin.text)
+                #print(ymin.text)
                 xmax = x.find('bndbox/' + tag_name[2])
-                # print(xmax.text)
+                #print(xmax.text)
                 ymax = x.find('bndbox/' + tag_name[3])
-                # print(ymax.text)
+                #print(ymax.text)
 
                 tag += 1
-                # print(tag)
+                #print(tag)
 
                 img = images[i]
                 ROI = img[int(float(ymin.text)):int(float(ymax.text)), int(float(xmin.text)):int(float(xmax.text))]
@@ -128,22 +126,20 @@ def scaleImageFromROI(images, label_path):
                 cv2.imwrite(os.path.join(dir, "sailboat_down" + str(i) + "_" + str(tag) + ".jpg"), ROI)
                 cv2.waitKey(0)
                 cropped_images.append(ROI)
-                train_labels.append(class_index)
 
             elif "sailboat with sails up" in name.text:
-                class_index = 2
-                # print("In sailboat")
+                #print("In sailboat")
                 xmin = x.find('bndbox/' + tag_name[0])
-                # print(xmin.text)
+                #print(xmin.text)
                 ymin = x.find('bndbox/' + tag_name[1])
-                # print(ymin.text)
+                #print(ymin.text)
                 xmax = x.find('bndbox/' + tag_name[2])
-                # print(xmax.text)
+                #print(xmax.text)
                 ymax = x.find('bndbox/' + tag_name[3])
-                # print(ymax.text)
+                #print(ymax.text)
 
                 tag += 1
-                # print(tag)
+                #print(tag)
 
                 img = images[i]
                 ROI = img[int(float(ymin.text)):int(float(ymax.text)), int(float(xmin.text)):int(float(xmax.text))]
@@ -152,22 +148,20 @@ def scaleImageFromROI(images, label_path):
                 cv2.imwrite(os.path.join(dir, "sailboat_up" + str(i) + "_" + str(tag) + ".jpg"), ROI)
                 cv2.waitKey(0)
                 cropped_images.append(ROI)
-                train_labels.append(class_index)
 
             elif "barge" in name.text:
-                class_index = 3
-                # print("In barge")
+                #print("In barge")
                 xmin = x.find('bndbox/' + tag_name[0])
-                # print(xmin.text)
+                #print(xmin.text)
                 ymin = x.find('bndbox/' + tag_name[1])
-                # print(ymin.text)
+                #print(ymin.text)
                 xmax = x.find('bndbox/' + tag_name[2])
-                # print(xmax.text)
+                #print(xmax.text)
                 ymax = x.find('bndbox/' + tag_name[3])
-                # print(ymax.text)
+                #print(ymax.text)
 
                 tag += 1
-                # print(tag)
+                #print(tag)
 
                 img = images[i]
                 ROI = img[int(float(ymin.text)):int(float(ymax.text)), int(float(xmin.text)):int(float(xmax.text))]
@@ -176,7 +170,6 @@ def scaleImageFromROI(images, label_path):
                 cv2.imwrite(os.path.join(dir, "barge" + str(i) + "_" + str(tag) + ".jpg"), ROI)
                 cv2.waitKey(0)
                 cropped_images.append(ROI)
-                train_labels.append(class_index)
 
             elif "building" in name.text:
                 var = None
@@ -194,8 +187,7 @@ def scaleImageFromROI(images, label_path):
                 var = None
             elif "bridge" in name.text:
                 var = None
-            else:  # motorboat
-                class_index = 4
+            else: # motorboat
                 # print("In motorboat")
                 xmin = x.find('bndbox/' + tag_name[0])
                 # print(xmin.text)
@@ -214,65 +206,96 @@ def scaleImageFromROI(images, label_path):
                 cv2.imwrite(os.path.join(dir, "motorboat" + str(i) + "_" + str(tag) + ".jpg"), ROI)
                 cv2.waitKey(0)
                 cropped_images.append(ROI)
-                train_labels.append(class_index)
+    return cropped_images
 
-    return cropped_images, train_labels
-
-
-def splitDataset(dataset, random):
+def splitDataset():
     # TODO split dataset with cropped images into training and testing
-    train, test = train_test_split(dataset, test_size=0.2, train_size=0.8, shuffle=random)
-    return train, test
+    # Get the classified images
+    motorboat_priority = getClassImages('dataset/cropped_images/motorboat_priority')
+    sailboat_down = getClassImages('dataset/cropped_images/sailboat_down')
+    sailboat_up = getClassImages('dataset/cropped_images/sailboat_up')
+    barge = getClassImages('dataset/cropped_images/barge')
+    motorboat = getClassImages('dataset/cropped_images/motorboat')
 
 
-def getFiles(train, path):
-    val = train
-    images = []
-    count = 0
-    for folder in os.listdir(path):
-        for file in os.listdir(os.path.join(path, folder)):
-            images.append(os.path.join(path, os.path.join(folder, file)))
+    dataset = [motorboat_priority, sailboat_down, sailboat_up, barge, motorboat]
 
-    # TODO endre til shuffel
-    # if (train is True):
-    #    np.random.shuffle(images)
-    return images
+    train = []
+    test = []
+    for i in dataset:
+        train_i, test_i = train_test_split(i, test_size=0.2, train_size=0.8, shuffle=True)
+        #print("Length train: ", len(train_i))
+        #print("Length test: ", len(test_i))
+        #print("")
+
+        train.append(train_i)
+        test.append(test_i)
+
+    train_dict = {
+        "motorboat_priority": train[0],  # motorboat_priority
+        "sailboat_down": train[1],  # sailboat_down
+        "sailboat_up": train[2],  # sailboat_up
+        "barge": train[3],  # barge
+        "motorboat": train[4]   # motorboat
+    }
+
+    test_dict = {
+        "motorboat_priority": test[0],  # motorboat_priority
+        "sailboat_down": test[1],  # sailboat_down
+        "sailboat_up": test[2],  # sailboat_up
+        "barge": test[3],  # barge
+        "motorboat": test[4]   # motorboat
+    }
+    return train_dict, test_dict
+
+
+def getClassImages(path):
+    #path = 'Cropped/barge'
+    class_images = []
+    file_path = []
+    for filename in os.listdir(path):
+        n_path = path + "/" + filename  # "dataset/Optisk/190616_112733.jpg"
+        file_path.append(n_path)
+        img = cv2.imread(n_path)  # Read image and convert to grayscale
+        class_images.append(img)
+    return class_images
 
 
 def getDescriptors(sift, orb, extractor, img):
-    # kp, des = sift.detectAndCompute(img, None)
-    if "sift" in extractor:  # Funker
-        # sift = cv2.SIFT_create()
+    #kp, des = sift.detectAndCompute(img, None)
+    if "sift" in extractor:# Funker
+        #sift = cv2.SIFT_create()
         kp, des = sift.detectAndCompute(img, None)
 
-    if "orb" in extractor:  # Funker
-        # orb = cv2.ORB_create()
+    if "orb" in extractor: # Funker
+        #orb = cv2.ORB_create()
         kp, des = orb.detectAndCompute(img, None)
 
+
     img_kp = cv2.drawKeypoints(img, kp, None, color=(0, 0, 255))
-    # cv2.imwrite('img_keypoint.png', img_kp)
+    #cv2.imwrite('img_keypoint.png', img_kp)
     return des, img_kp
 
 
 def readImage(img_path):
-    # img = cv2.imread(img_path, 0)
+    #img = cv2.imread(img_path, 0)
     img = cv2.imread(img_path, 0)
     return img  # cv2.resize(img, (150, 150))
 
 
 def vstackDescriptors(descriptor_list):
     descriptors = np.array(descriptor_list[0])
-    # print("In vstackDescriptor - Shape descriptor: ", np.shape(descriptors))
+    #print("In vstackDescriptor - Shape descriptor: ", np.shape(descriptors))
     for descriptor in descriptor_list[1:]:
-        # print("Shape descriptor: ", np.shape(descriptor))
+        #print("Shape descriptor: ", np.shape(descriptor))
         descriptors = np.vstack((descriptors, descriptor))
     return descriptors
 
 
 def clusterDescriptors(descriptors, no_clusters):
-    # kmeans = KMeans(init="random", n_clusters=no_clusters, n_init=10, max_iter=300, random_state=42)
-    # kmeans.fit(descriptors)
-    kmeans = KMeans(n_clusters=no_clusters).fit(descriptors)
+    #kmeans = KMeans(init="random", n_clusters=no_clusters, n_init=10, max_iter=300, random_state=42)
+    #kmeans.fit(descriptors)
+    kmeans = KMeans(n_clusters=no_clusters).fit(descriptors) # TODO legg til init='k-means++'
     return kmeans
 
 
@@ -284,7 +307,6 @@ def extractFeatures(kmeans, descriptor_list, image_count, no_clusters):
             feature = feature.reshape(1, 128)
             idx = kmeans.predict(feature)
             im_features[i][idx] += 1
-
     return im_features
 
 
@@ -335,10 +357,8 @@ def findSVM(im_features, train_labels, kernel):
     return svm
 
 
-def plotConfusionMatrix(y_true, y_pred, classes,
-                        normalize=False,
-                        title=None,
-                        cmap=plt.cm.Blues):
+def plotConfusionMatrix(y_true, y_pred, classes, normalize=False, title=None, cmap=plt.cm.Blues):
+
     if not title:
         if normalize:
             title = 'Normalized confusion matrix'
@@ -381,7 +401,7 @@ def plotConfusionMatrix(y_true, y_pred, classes,
 def plotConfusions(true, predictions):
     np.set_printoptions(precision=2)
 
-    class_names = ["barge", "motorboat", "motorboat_priority", "sailboat_down", "sailboat_up"]
+    class_names = ["motorboat_priority", "sailboat_down", "sailboat_up", "barge", "motorboat"]
 
     plotConfusionMatrix(true, predictions, classes=class_names,
                         title='Confusion matrix, without normalization')
@@ -392,15 +412,17 @@ def plotConfusions(true, predictions):
 
 
 def findAccuracy(true, predictions):
-    print('accuracy score: %0.3f' % accuracy_score(true, predictions))
+    print('accuracy score: %0.3f' % metric.accuracy_score(true, predictions))
+
+    #print('f1 score: %0.3f' % metrics.f1_score(true, predictions))
+    #print('precision score: %0.3f' % metrics.precision_score(true, predictions))
+    #print('recall score: %0.3f' % metrics.recall_score(true, predictions))
 
 
 # TODO train model
-def trainModel(folder, no_clusters, kernel):
+def trainModel(train_dict, no_clusters, kernel):
     time1 = time.time()
 
-    image_path = getFiles(True, folder)  # Dataset/train\face\face-091.jpg
-    print("Train images path detected.")
 
     # Create extractors
     sift = cv2.SIFT_create(nfeatures=0, nOctaveLayers=3, contrastThreshold=0.04, edgeThreshold=10, sigma=1.6)
@@ -411,32 +433,32 @@ def trainModel(folder, no_clusters, kernel):
     kp_img_list = []
     zero_des_list = []
     train_labels = np.array([])
-    # label_count = 3
+    count = 0
 
     train_images = []
-    for path in image_path:
-        img = readImage(path)
-        train_images.append(img)
-        des, kp_img = getDescriptors(sift, orb, "sift", img)
-        # TODO add count =+ 1 for counting (like in train)
-        if des is not None:
-            descriptor_list.append(des)
-            kp_img_list.append(kp_img)
+    for k, img_list in train_dict.items():
+        for img in img_list:
+            des, kp_img = getDescriptors(sift, orb, "sift", img)
+            train_images.append(img)
 
-            if ("motorboat_priority" in path):
-                class_index = 0
-            elif ("sailboat_down" in path):
-                class_index = 1
-            elif ("sailboat_up" in path):
-                class_index = 2
-            elif ("barge" in path):
-                class_index = 3
+            if des is not None:
+                count += 1
+                descriptor_list.append(des)
+                kp_img_list.append(kp_img)
+                #print("We are looking at a " + k)
+                if k == "motorboat_priority":
+                    class_index = 0
+                if k == "sailboat_down":
+                    class_index = 1
+                if k == "sailboat_up":
+                    class_index = 2
+                if k == "barge":
+                    class_index = 3
+                if k == "motorboat":
+                    class_index = 4
+                train_labels = np.append(train_labels, class_index)
             else:
-                class_index = 4
-            train_labels = np.append(train_labels, class_index)
-        else:
-            print("Found Zero-descriptor: " + path)
-            zero_des_list.append(des)
+                print("Found zero-descriptor in training set")
 
     print("Nr. of images", len(train_images))
     print("Train labels:", len(train_labels))
@@ -447,10 +469,10 @@ def trainModel(folder, no_clusters, kernel):
     print("Lenght descriptor 0: ", len(descriptor_list[0]), np.shape(descriptor_list[0]))
     print("Lenght descriptor 10: ", len(descriptor_list[10]), np.shape(descriptor_list[10]))
 
-    plt.imshow(kp_img_list[10], cmap=plt.cm.gray)
-    plt.axis('off')
-    plt.title("Image")
-    plt.show()
+    #plt.imshow(kp_img_list[10], cmap=plt.cm.gray)
+    #plt.axis('off')
+    #plt.title("Image")
+    #plt.show()
     # print("train labels:", train_labels)
 
     descriptors = vstackDescriptors(descriptor_list)
@@ -459,13 +481,8 @@ def trainModel(folder, no_clusters, kernel):
     kmeans = clusterDescriptors(descriptors, no_clusters)
     print("Descriptors clustered.")
 
-    # TODO legg til if
-    if zero_des_list is not None:
-        image_count = len(image_path) - len(zero_des_list)
-    else:
-        image_count = len(image_path)
     # image_count = len(image_path) - len(zero_des_list) # Subtract the zero-descriptors
-    im_features = extractFeatures(kmeans, descriptor_list, image_count, no_clusters)
+    im_features = extractFeatures(kmeans, descriptor_list, count, no_clusters)
     print("Images features extracted.")
 
     scale = StandardScaler().fit(im_features)
@@ -475,10 +492,17 @@ def trainModel(folder, no_clusters, kernel):
     plotHistogram(im_features, no_clusters)
     print("Features histogram plotted.")
 
-    svm = findSVM(im_features, train_labels, kernel)
-    print(im_features)
+    #svm = findSVM(im_features, train_labels, kernel)
+    #print(im_features)
+    svm = SVC(kernel=kernel) # Initialize the Support Vector Classifier (SVC)
+    svm.fit(im_features, train_labels) # Fit the model
     print("SVM fitted.")
+
+    # Make predictions
+    predictions = svm.predict(im_features)
+    print(predictions)
     print("Training completed.")
+    print("")
 
     time2 = time.time()
     print("... Running training time:", (time2 - time1) / 60, "min ...")
@@ -487,11 +511,8 @@ def trainModel(folder, no_clusters, kernel):
 
 
 # TODO test model
-def testModel(path, kmeans, scale, svm, im_features, no_clusters, kernel):
+def testModel(test_dict, kmeans, scale, svm, im_features, no_clusters, kernel):
     time1 = time.time()
-
-    test_images = getFiles(False, path)
-    print("Test images path detected.")
 
     sift = cv2.SIFT_create(nfeatures=0, nOctaveLayers=3, contrastThreshold=0.04, edgeThreshold=10, sigma=1.6)
     orb = cv2.ORB_create(nfeatures=500, scaleFactor=1.2, nlevels=8, edgeThreshold=31, firstLevel=0,
@@ -509,34 +530,38 @@ def testModel(path, kmeans, scale, svm, im_features, no_clusters, kernel):
         "4": "motorboat"
     }
 
-    for path in test_images:
-        img = readImage(path)
-        des, _ = getDescriptors(sift, orb, "sift", img)
 
-        if (des is not None):
-            count += 1  # TODO gjør dette i train også
-            descriptor_list.append(des)
+    #for path in test_images: # TODO bytt ut path med test images
+    for k, img_list in test_dict.items():
+        for img in img_list:
+            #img = readImage(path)
+            des, _ = getDescriptors(sift, orb, "sift", img)
 
-            if ("motorboat_priority" in path):
-                true.append("motorboat_priority")
-            elif ("sailboat_down" in path):
-                true.append("sailboat_down")
-            elif ("sailboat_up" in path):
-                true.append("sailboat_up")
-            elif ("barge" in path):
-                true.append("barge")
+            if (des is not None):
+                count += 1
+                descriptor_list.append(des)
+
+                if k == "motorboat_priority":
+                    true.append("motorboat_priority")
+                elif k == "sailboat_down":
+                    true.append("sailboat_down")
+                elif k == "sailboat_up":
+                    true.append("sailboat_up")
+                elif k == "barge":
+                    true.append("barge")
+                else:
+                    true.append("motorboat")
             else:
-                true.append("motorboat")
-        else:
-            print("Found zero-descriptor in train set: " + path)
+                print("Found zero-descriptor in test set")
 
-    # print("descriptor_list shape: ", np.shape(descriptor_list))
-    # print("descriptor_list[0] shape: ", np.shape(descriptor_list[0]))
-    # print("descriptor_list[10] shape: ", np.shape(descriptor_list[10]))
 
-    # descriptors = vstackDescriptors(descriptor_list)
+    #print("descriptor_list shape: ", np.shape(descriptor_list))
+    #print("descriptor_list[0] shape: ", np.shape(descriptor_list[0]))
+    #print("descriptor_list[10] shape: ", np.shape(descriptor_list[10]))
+
+    #descriptors = vstackDescriptors(descriptor_list)
     print("")
-    # print("descriptors shape: ", np.shape(descriptors))
+    #print("descriptors shape: ", np.shape(descriptors))
 
     test_features = extractFeatures(kmeans, descriptor_list, count, no_clusters)
 
@@ -548,56 +573,75 @@ def testModel(path, kmeans, scale, svm, im_features, no_clusters, kernel):
         kernel_test = np.dot(test_features, im_features.T)
 
     predictions = [name_dict[str(int(i))] for i in svm.predict(kernel_test)]
+    #predictions = [test_dict[str(int(i))] for i in svm.predict(kernel_test)]
     print("Test images classified.")
 
-    print("True labels:", true)
-    print("Predictions:", predictions)
+    print("True labels:", len(true), true)
+    print("Predictions:", len(predictions), predictions)
 
-    plotConfusions(true, predictions)
-    print("Confusion matrices plotted.")
 
-    findAccuracy(true, predictions)
-    print("Accuracy calculated.")
-    print("Execution done.")
+    #plotConfusions(true, predictions)
+    #print("Confusion matrices plotted.")
+
+    #findAccuracy(true, predictions)
+    print("Measure performance -----------------------")
+    print("Accuracy score %.3f" % metric.accuracy_score(true, predictions))
+    print("F1-score %.3f" % metric.f1_score(true, predictions, average='macro'))
+    print("Precision %.3f" % metric.precision_score(true, predictions, average='samples'))
+    print("Recall %.3f" % metric.recall_score(true, predictions, average='samples'))
+    #print("Accuracy calculated.")
+    #print("Execution done.")
 
     time2 = time.time()
     print("Running testing time:", (time2 - time1) / 60, "min")
+
+
 
 
 if __name__ == '__main__':
 
     imageProcessing = False
     if imageProcessing is True:
-        img_path_train, annotation_path_train = getFilePath('images/train')
+        img_path_train, annotation_path_train = getFilePath('dataset/Optisk')
         print("GetFilePath completed")
 
         images_train = readImageInFolder(img_path_train)
         print("readImageInFolder completed")
 
-        scaled_images_train, train_labels = scaleImageFromROI(images_train, annotation_path_train)
+        scaled_images_train = scaleImageFromROI(images_train, annotation_path_train)
         print("scaleImageFromROI completed")
 
-        # Split dataset into training and testing
+    # Split dataset into training and testing
+    train_dict, test_dict = splitDataset()
+    print("Train/test split completed")
+
+
+    #print("Training images: ", len(train_images))
+    #print("Testing images: ", len(test_images))
+
 
     train_model = False
     if train_model is True:
-        kmeans, scale, svm, im_features = trainModel('Dataset/train', 10, 'linear')
-        # trainModel('Dataset/train', 40, 'linear')
+        kmeans, scale, svm, im_features = trainModel(train_dict, 10, 'linear')
+        #kmeans, scale, svm, im_features = trainModel('Dataset/train', 10, 'linear')
+        #trainModel(train_dict, 10, 'linear')
 
         # Save training variables
-        # myvar = [kmeans, scale, svm, im_features]
-        # with open('file.pkl', 'wb') as file:
-        # A new file will be created
-        #    pickle.dump(myvar, file)
+        myvar = [kmeans, scale, svm, im_features]
+        with open('file.pkl', 'wb') as file:
+            # A new file will be created
+            pickle.dump(myvar, file)
 
-        # print("Pickle file saved")
+        print("Pickle file saved")
 
-    # Open saved train file
+
+
+    # Open saved file
     with open('file.pkl', 'rb') as file:
-        # Call load method to deserialze
+        # Call method
         var = pickle.load(file)
 
-        # print(var[4])
+        #print(var[4])
 
     kmeans = var[0]
     scale = var[1]
@@ -607,7 +651,8 @@ if __name__ == '__main__':
     print("Pickle file loaded")
 
     print(" ")
-    testModel('Dataset/test', kmeans, scale, svm, im_features, 10, 'linear')
+    #testModel('Dataset/test', kmeans, scale, svm, im_features, 10, 'linear')
+    testModel(test_dict, kmeans, scale, svm, im_features, 10, 'linear')
 
 
 
