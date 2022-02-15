@@ -1,11 +1,3 @@
-"""
-The source code is inspired by:
-*    Title: Bag-of-Visual-Words
-*    Author: Gurkan Demir (Github: gurkandemir)
-*    Date: 2019
-*    Availability: https://github.com/gurkandemir/Bag-of-Visual-Words
-"""
-
 import cv2
 import numpy as np
 import os
