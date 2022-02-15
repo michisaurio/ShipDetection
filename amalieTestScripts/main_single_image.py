@@ -122,7 +122,7 @@ def saveImagePatches(kp, directory):
 
 
 if __name__ == '__main__':
-    img = cv2.imread('Dataset/ship4.jpg')
+    img = cv2.imread('dataset/testImages/ship4.jpg')
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     # defining feature extractor that we want to use
