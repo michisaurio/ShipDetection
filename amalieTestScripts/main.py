@@ -430,15 +430,15 @@ if __name__ == '__main__':
         print("scaleImageFromROI completed")
 
 
-    #train_dict, test_dict = splitDataset()
+    train_dict, test_dict = splitDataset()
     print("Train/test split completed")
 
-    #extractor = "sift"
-    #noClusters = 10
+    extractor = "sift"
+    noClusters = 10
 
-    #kmeans, scale, svm = trainModel(train_dict, extractor=extractor, no_clusters=noClusters, kernel='rbf')
+    kmeans, scale, svm = trainModel(train_dict, extractor=extractor, no_clusters=noClusters, kernel='rbf')
     print(" ")
-    #testModel(test_dict, extractor, kmeans, scale, svm, no_clusters=noClusters)
+    testModel(test_dict, extractor, kmeans, scale, svm, no_clusters=noClusters)
 
     """
         # Save training variables

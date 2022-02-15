@@ -77,7 +77,7 @@ def generateClusters(descriptors, n_clusters):
     """
     given vocabulary, and number of clusters in which vocabulary is to be divided, applies kmeans algorithm and returns
 
-    :param vocab: vocabulary containing feature descriptors from all the images available for training.
+    :param descriptors: array containing feature descriptors from all the images available for training.
     :param n_clusters: Number of clusters for dividing vocab.
     :return: kmeans - which is further used to predict.
     """
